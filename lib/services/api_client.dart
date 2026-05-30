@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ApiClient {
-  static const String baseUrl = 'http://acadicronbackend.educron.com/api';
+  static const String baseUrl = 'https://acadicronbackend.educron.com/api';
 
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
