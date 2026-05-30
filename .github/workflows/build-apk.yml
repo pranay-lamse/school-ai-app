@@ -11,6 +11,9 @@ jobs:
     name: Build APK
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: write
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -32,9 +35,15 @@ jobs:
       - name: Build APK
         run: flutter build apk --release
 
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+      - name: Get current date
+        id: date
+        run: echo "date=$(date +'%Y-%m-%d_%H-%M-%S')" >> $GITHUB_ENV
+
+      - name: Upload APK directly to Release
+        uses: softprops/action-gh-release@v1
         with:
-          name: acadicron-app-release
-          path: build/app/outputs/flutter-apk/app-release.apk
-          retention-days: 30
+          tag_name: build-${{ env.date }}
+          name: Build ${{ env.date }}
+          files: build/app/outputs/flutter-apk/app-release.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
