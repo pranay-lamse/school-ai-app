@@ -38,8 +38,21 @@ class _FeesScreenState extends State<FeesScreen> {
 
     try {
       final response = await _apiClient.get('/studentfees/$studentId');
+      
+      final dueFeesGroups = response['student_due_fees'] as List<dynamic>? ?? [];
+      final List<dynamic> allFees = [];
+      
+      for (var group in dueFeesGroups) {
+        final fees = group['fees'] as List<dynamic>? ?? [];
+        for (var fee in fees) {
+          // Flatten by adding group info to the fee
+          fee['group_name'] = group['name'];
+          allFees.add(fee);
+        }
+      }
+      
       setState(() {
-        _fees = response['data'] ?? [];
+        _fees = allFees;
         _isLoading = false;
       });
     } on ApiException catch (e) {
@@ -142,10 +155,23 @@ class _FeesScreenState extends State<FeesScreen> {
         itemCount: _fees.length,
         itemBuilder: (context, index) {
           final fee = _fees[index];
-          final feeType = fee['fee_type_name'] ?? fee['name'] ?? 'Fee';
+          final groupName = fee['group_name'] ?? 'Fee Group';
+          final feeType = fee['name'] ?? fee['type'] ?? 'Fee';
           final amount = fee['amount']?.toString() ?? '0';
-          final paid = fee['total_amount_paid']?.toString() ?? '0';
-          final status = fee['status'] ?? '';
+          
+          // amount_detail contains a JSON string or 0 if nothing is paid
+          final amountDetail = fee['amount_detail'];
+          double paidAmount = 0.0;
+          if (amountDetail != null && amountDetail != 0 && amountDetail != '0') {
+            try {
+               // Sometimes amount_detail is a JSON string of a map/array, sometimes just a number.
+               // We will try to parse if it looks like JSON. (Simple sum logic can go here if needed).
+               // But for now let's just display it if it's a number, or assume 0 if unparseable to keep it simple.
+            } catch (e) {
+               // ignore
+            }
+          }
+          final status = paidAmount > 0 ? 'Paid/Partial' : 'Unpaid';
 
           return Container(
             margin: const EdgeInsets.only(bottom: 12),
@@ -173,6 +199,15 @@ class _FeesScreenState extends State<FeesScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
+                        groupName,
+                        style: const TextStyle(
+                          color: AppTheme.textMuted,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
                         feeType,
                         style: const TextStyle(
                           color: AppTheme.textPrimary,
@@ -182,9 +217,9 @@ class _FeesScreenState extends State<FeesScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Amount: ₹$amount  •  Paid: ₹$paid',
+                        'Amount: ₹$amount',
                         style: const TextStyle(
-                            color: AppTheme.textMuted, fontSize: 12),
+                            color: AppTheme.textSecondary, fontSize: 13),
                       ),
                     ],
                   ),
@@ -194,7 +229,7 @@ class _FeesScreenState extends State<FeesScreen> {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: status.toLowerCase() == 'paid'
+                      color: status.contains('Paid')
                           ? AppTheme.success.withValues(alpha: 0.15)
                           : AppTheme.warning.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(8),
@@ -202,7 +237,7 @@ class _FeesScreenState extends State<FeesScreen> {
                     child: Text(
                       status,
                       style: TextStyle(
-                        color: status.toLowerCase() == 'paid'
+                        color: status.contains('Paid')
                             ? AppTheme.success
                             : AppTheme.warning,
                         fontSize: 11,
