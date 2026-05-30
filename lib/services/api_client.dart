@@ -59,8 +59,12 @@ class ApiClient {
   Map<String, dynamic> _handleResponse(http.Response response) {
     final body = jsonDecode(response.body);
     if (response.statusCode == 401) {
-      clearToken();
-      throw ApiException('Session expired. Please login again.');
+      if (body['message'] == 'Authentication failed') {
+        throw ApiException('Invalid username or password');
+      } else {
+        clearToken();
+        throw ApiException('Session expired. Please login again.');
+      }
     }
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return body is Map<String, dynamic> ? body : {'data': body};
