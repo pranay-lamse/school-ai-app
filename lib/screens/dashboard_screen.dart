@@ -196,10 +196,11 @@ class _DashboardHome extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  Row(
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 8,
                     children: [
                       _InfoChip(icon: Icons.class_rounded, label: 'Class $className'),
-                      const SizedBox(width: 12),
                       _InfoChip(icon: Icons.groups_rounded, label: 'Section $sectionName'),
                     ],
                   ),
@@ -227,7 +228,7 @@ class _DashboardHome extends StatelessWidget {
               physics: const NeverScrollableScrollPhysics(),
               crossAxisSpacing: 14,
               mainAxisSpacing: 14,
-              childAspectRatio: 1.3,
+              childAspectRatio: 1.0,
               children: [
                 _FeatureTile(
                   icon: Icons.receipt_long_rounded,
@@ -369,7 +370,9 @@ class _FeatureTile extends StatelessWidget {
             const SizedBox(height: 2),
             Text(
               subtitle,
-              style: const TextStyle(color: AppTheme.textMuted, fontSize: 12),
+              style: const TextStyle(color: AppTheme.textMuted, fontSize: 11),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
