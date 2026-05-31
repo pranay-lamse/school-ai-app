@@ -5,6 +5,8 @@ import 'package:shimmer/shimmer.dart';
 import '../services/api_client.dart';
 import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
+import 'package:razorpay_flutter/razorpay_flutter.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class FeesScreen extends StatefulWidget {
   const FeesScreen({super.key});
@@ -24,11 +26,78 @@ class _FeesScreenState extends State<FeesScreen> {
   String _currencySymbol = '₹';
   bool _isLoading = true;
   String? _error;
+  late Razorpay _razorpay;
 
   @override
   void initState() {
     super.initState();
     _loadFees();
+    _razorpay = Razorpay();
+    _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
+    _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
+    _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+    _razorpay.clear();
+  }
+
+  void _handlePaymentSuccess(PaymentSuccessResponse response) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Payment Successful! Payment ID: ${response.paymentId}'),
+        backgroundColor: AppTheme.success,
+      ),
+    );
+    // In a real app, call your backend to verify and update the fee status
+    _loadFees();
+  }
+
+  void _handlePaymentError(PaymentFailureResponse response) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Payment Failed: ${response.message ?? "Unknown error"}'),
+        backgroundColor: AppTheme.error,
+      ),
+    );
+  }
+
+  void _handleExternalWallet(ExternalWalletResponse response) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('External Wallet Selected: ${response.walletName}')),
+    );
+  }
+
+  void _openCheckout(_FeeRow fee) {
+    if (kIsWeb) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Razorpay Flutter does not support Web directly in this demo. Please use the mobile app (APK).'),
+          backgroundColor: AppTheme.warning,
+        ),
+      );
+      return;
+    }
+
+    final auth = Provider.of<AuthService>(context, listen: false);
+    var options = {
+      'key': 'rzp_test_YOUR_FAKE_DEMO_KEY', // Replace with real key later
+      'amount': (fee.balance * 100).toInt(), // amount in the smallest currency sub-unit
+      'name': 'AcadiCron',
+      'description': '${fee.groupName} - ${fee.feeName}',
+      'prefill': {
+        'contact': '9876543210',
+        'email': 'student@example.com'
+      }
+    };
+
+    try {
+      _razorpay.open(options);
+    } catch (e) {
+      debugPrint('Error: e');
+    }
   }
 
   Future<void> _loadFees() async {
@@ -447,6 +516,30 @@ class _FeesScreenState extends State<FeesScreen> {
                   valueColor:
                       fee.balance <= 0 ? AppTheme.success : AppTheme.error,
                 ),
+                if (fee.balance > 0) ...[
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => _openCheckout(fee),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primaryPurple,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: const Text(
+                        'Pay Now',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
