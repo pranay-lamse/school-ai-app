@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
@@ -14,7 +15,13 @@ class FeesScreen extends StatefulWidget {
 
 class _FeesScreenState extends State<FeesScreen> {
   final ApiClient _apiClient = ApiClient();
-  List<dynamic> _fees = [];
+  List<_FeeRow> _fees = [];
+  double _totalAmount = 0;
+  double _totalPaid = 0;
+  double _totalDiscount = 0;
+  double _totalFine = 0;
+  double _totalBalance = 0;
+  String _currencySymbol = '₹';
   bool _isLoading = true;
   String? _error;
 
@@ -26,33 +33,93 @@ class _FeesScreenState extends State<FeesScreen> {
 
   Future<void> _loadFees() async {
     final auth = Provider.of<AuthService>(context, listen: false);
-    final studentId = auth.userData?['id']?.toString() ?? auth.userId;
+    // The API expects student_session_id, not student id
+    final studentSessionId =
+        auth.userData?['student_session_id']?.toString() ?? auth.userId;
 
-    if (studentId == null) {
+    if (studentSessionId == null) {
       setState(() {
-        _error = 'Student ID not found';
+        _error = 'Student session ID not found';
         _isLoading = false;
       });
       return;
     }
 
     try {
-      final response = await _apiClient.get('/studentfees/$studentId');
-      
-      final dueFeesGroups = response['student_due_fees'] as List<dynamic>? ?? [];
-      final List<dynamic> allFees = [];
-      
+      final response = await _apiClient.get('/studentfees/$studentSessionId');
+
+      final dueFeesGroups =
+          response['student_due_fees'] as List<dynamic>? ?? [];
+      final currencySymbol =
+          response['currency_symbol']?.toString() ?? '₹';
+
+      final List<_FeeRow> allFees = [];
+      double totalAmt = 0, totalPd = 0, totalDisc = 0, totalFn = 0, totalBal = 0;
+
       for (var group in dueFeesGroups) {
+        final groupName = group['name']?.toString() ?? 'Fee Group';
         final fees = group['fees'] as List<dynamic>? ?? [];
+
         for (var fee in fees) {
-          // Flatten by adding group info to the fee
-          fee['group_name'] = group['name'];
-          allFees.add(fee);
+          final amount = _parseDouble(fee['amount']);
+          final fineAmount = _parseDouble(fee['fine_amount']);
+          final code = fee['code']?.toString() ?? '';
+          final dueDate = fee['due_date']?.toString();
+          final feeName = fee['name']?.toString() ?? fee['type']?.toString() ?? 'Fee';
+
+          // Parse amount_detail (JSON string of deposit records)
+          double paid = 0, discount = 0, fine = 0;
+          final amountDetail = fee['amount_detail'];
+          if (amountDetail != null &&
+              amountDetail != 0 &&
+              amountDetail != '0' &&
+              amountDetail is String &&
+              amountDetail.isNotEmpty) {
+            try {
+              final parsed = jsonDecode(amountDetail);
+              if (parsed is Map) {
+                for (var entry in parsed.values) {
+                  if (entry is Map) {
+                    paid += _parseDouble(entry['amount']);
+                    discount += _parseDouble(entry['amount_discount']);
+                    fine += _parseDouble(entry['amount_fine']);
+                  }
+                }
+              }
+            } catch (_) {}
+          }
+
+          final balance = amount - (paid + discount);
+
+          totalAmt += amount;
+          totalPd += paid;
+          totalDisc += discount;
+          totalFn += fine;
+          totalBal += balance;
+
+          allFees.add(_FeeRow(
+            groupName: groupName,
+            feeName: feeName,
+            code: code,
+            dueDate: dueDate,
+            amount: amount,
+            fineAmount: fineAmount,
+            paid: paid,
+            discount: discount,
+            fine: fine,
+            balance: balance,
+          ));
         }
       }
-      
+
       setState(() {
         _fees = allFees;
+        _totalAmount = totalAmt;
+        _totalPaid = totalPd;
+        _totalDiscount = totalDisc;
+        _totalFine = totalFn;
+        _totalBalance = totalBal;
+        _currencySymbol = currencySymbol;
         _isLoading = false;
       });
     } on ApiException catch (e) {
@@ -68,6 +135,12 @@ class _FeesScreenState extends State<FeesScreen> {
     }
   }
 
+  double _parseDouble(dynamic value) {
+    if (value == null) return 0;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString()) ?? 0;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -78,7 +151,7 @@ class _FeesScreenState extends State<FeesScreen> {
               ? _buildError()
               : _fees.isEmpty
                   ? _buildEmpty()
-                  : _buildFeesList(),
+                  : _buildFeesContent(),
     );
   }
 
@@ -112,7 +185,9 @@ class _FeesScreenState extends State<FeesScreen> {
           children: [
             const Icon(Icons.error_outline, color: AppTheme.error, size: 48),
             const SizedBox(height: 16),
-            Text(_error!, style: const TextStyle(color: AppTheme.textSecondary)),
+            Text(_error!,
+                style: const TextStyle(color: AppTheme.textSecondary),
+                textAlign: TextAlign.center),
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () {
@@ -144,111 +219,331 @@ class _FeesScreenState extends State<FeesScreen> {
     );
   }
 
-  Widget _buildFeesList() {
+  Widget _buildFeesContent() {
     return RefreshIndicator(
       onRefresh: () async {
         setState(() => _isLoading = true);
         await _loadFees();
       },
-      child: ListView.builder(
-        padding: const EdgeInsets.all(20),
-        itemCount: _fees.length,
-        itemBuilder: (context, index) {
-          final fee = _fees[index];
-          final groupName = fee['group_name'] ?? 'Fee Group';
-          final feeType = fee['name'] ?? fee['type'] ?? 'Fee';
-          final amount = fee['amount']?.toString() ?? '0';
-          
-          // amount_detail contains a JSON string or 0 if nothing is paid
-          final amountDetail = fee['amount_detail'];
-          double paidAmount = 0.0;
-          if (amountDetail != null && amountDetail != 0 && amountDetail != '0') {
-            try {
-               // Sometimes amount_detail is a JSON string of a map/array, sometimes just a number.
-               // We will try to parse if it looks like JSON. (Simple sum logic can go here if needed).
-               // But for now let's just display it if it's a number, or assume 0 if unparseable to keep it simple.
-            } catch (e) {
-               // ignore
-            }
-          }
-          final status = paidAmount > 0 ? 'Paid/Partial' : 'Unpaid';
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // Summary card
+          _buildSummaryCard(),
+          const SizedBox(height: 20),
+          // Fee items
+          ..._fees.map((fee) => _buildFeeCard(fee)),
+        ],
+      ),
+    );
+  }
 
-          return Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppTheme.cardBg,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppTheme.cardBorder),
+  Widget _buildSummaryCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF7A5AF8), Color(0xFF9F7AEA)],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.primaryPurple.withValues(alpha: 0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Fee Summary',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
             ),
-            child: Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: AppTheme.success.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _SummaryItem(
+                    label: 'Total',
+                    value: '$_currencySymbol${_totalAmount.toStringAsFixed(2)}'),
+              ),
+              Expanded(
+                child: _SummaryItem(
+                    label: 'Paid',
+                    value: '$_currencySymbol${_totalPaid.toStringAsFixed(2)}'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _SummaryItem(
+                    label: 'Discount',
+                    value:
+                        '$_currencySymbol${_totalDiscount.toStringAsFixed(2)}'),
+              ),
+              Expanded(
+                child: _SummaryItem(
+                    label: 'Balance',
+                    value:
+                        '$_currencySymbol${_totalBalance.toStringAsFixed(2)}'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeeCard(_FeeRow fee) {
+    Color statusColor;
+    String statusText;
+    Color statusBg;
+
+    if (fee.balance <= 0) {
+      statusText = 'Paid';
+      statusColor = const Color(0xFF15803D);
+      statusBg = const Color(0xFFDCFCE7);
+    } else if (fee.paid > 0) {
+      statusText = 'Partial';
+      statusColor = const Color(0xFF854D0E);
+      statusBg = const Color(0xFFFEF9C3);
+    } else {
+      statusText = 'Unpaid';
+      statusColor = const Color(0xFF991B1B);
+      statusBg = const Color(0xFFFEE2E2);
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header row: group name + status badge
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  fee.groupName,
+                  style: const TextStyle(
+                    color: AppTheme.textMuted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
                   ),
-                  child: const Icon(Icons.receipt_long_rounded,
-                      color: AppTheme.success, size: 22),
                 ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        groupName,
-                        style: const TextStyle(
-                          color: AppTheme.textMuted,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        feeType,
-                        style: const TextStyle(
-                          color: AppTheme.textPrimary,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Amount: ₹$amount',
-                        style: const TextStyle(
-                            color: AppTheme.textSecondary, fontSize: 13),
-                      ),
-                    ],
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: statusBg,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  statusText,
+                  style: TextStyle(
+                    color: statusColor,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-                if (status.isNotEmpty)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: status.contains('Paid')
-                          ? AppTheme.success.withValues(alpha: 0.15)
-                          : AppTheme.warning.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      status,
-                      style: TextStyle(
-                        color: status.contains('Paid')
-                            ? AppTheme.success
-                            : AppTheme.warning,
-                        fontSize: 11,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // Fee type + code
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(Icons.receipt_long_rounded,
+                    color: statusColor, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      fee.code.isNotEmpty ? fee.code : fee.feeName,
+                      style: const TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 15,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                  ),
+                    if (fee.dueDate != null)
+                      Text(
+                        'Due: ${fee.dueDate}',
+                        style: const TextStyle(
+                            color: AppTheme.textMuted, fontSize: 12),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Amount details
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceLight.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              children: [
+                _DetailRow(
+                    label: 'Amount',
+                    value:
+                        '$_currencySymbol${fee.amount.toStringAsFixed(2)}'),
+                if (fee.fineAmount > 0)
+                  _DetailRow(
+                      label: 'Fine',
+                      value:
+                          '+ $_currencySymbol${fee.fineAmount.toStringAsFixed(2)}',
+                      valueColor: AppTheme.error),
+                if (fee.discount > 0)
+                  _DetailRow(
+                      label: 'Discount',
+                      value:
+                          '- $_currencySymbol${fee.discount.toStringAsFixed(2)}',
+                      valueColor: AppTheme.success),
+                if (fee.paid > 0)
+                  _DetailRow(
+                      label: 'Paid',
+                      value:
+                          '$_currencySymbol${fee.paid.toStringAsFixed(2)}',
+                      valueColor: AppTheme.success),
+                const Divider(color: AppTheme.cardBorder, height: 16),
+                _DetailRow(
+                  label: 'Balance',
+                  value:
+                      '$_currencySymbol${fee.balance.toStringAsFixed(2)}',
+                  isBold: true,
+                  valueColor:
+                      fee.balance <= 0 ? AppTheme.success : AppTheme.error,
+                ),
               ],
             ),
-          );
-        },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FeeRow {
+  final String groupName;
+  final String feeName;
+  final String code;
+  final String? dueDate;
+  final double amount;
+  final double fineAmount;
+  final double paid;
+  final double discount;
+  final double fine;
+  final double balance;
+
+  _FeeRow({
+    required this.groupName,
+    required this.feeName,
+    required this.code,
+    this.dueDate,
+    required this.amount,
+    required this.fineAmount,
+    required this.paid,
+    required this.discount,
+    required this.fine,
+    required this.balance,
+  });
+}
+
+class _SummaryItem extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _SummaryItem({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: const TextStyle(
+                color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500)),
+        const SizedBox(height: 4),
+        Text(value,
+            style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w700)),
+      ],
+    );
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool isBold;
+  final Color? valueColor;
+
+  const _DetailRow({
+    required this.label,
+    required this.value,
+    this.isBold = false,
+    this.valueColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              color: AppTheme.textSecondary,
+              fontSize: 13,
+              fontWeight: isBold ? FontWeight.w600 : FontWeight.w400,
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              color: valueColor ?? AppTheme.textPrimary,
+              fontSize: 13,
+              fontWeight: isBold ? FontWeight.w700 : FontWeight.w500,
+            ),
+          ),
+        ],
       ),
     );
   }
