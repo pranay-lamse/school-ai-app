@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_html/flutter_html.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 import 'package:printing/printing.dart';
 import 'package:pdf/pdf.dart';
 import '../services/api_client.dart';
@@ -162,10 +162,15 @@ class _CertificateViewScreenState extends State<CertificateViewScreen> {
   bool _isLoading = true;
   String? _error;
   bool _isDownloading = false;
+  late final WebViewController _webViewController;
 
   @override
   void initState() {
     super.initState();
+    _webViewController = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(const Color(0x00000000));
+      
     _fetchCertificateHtml();
   }
 
@@ -199,10 +204,18 @@ class _CertificateViewScreenState extends State<CertificateViewScreen> {
         body,
       );
 
+      final rawHtml = response['data'] ?? '';
+      
       setState(() {
-        _htmlContent = response['data'] ?? '';
+        _htmlContent = rawHtml;
         _isLoading = false;
       });
+      
+      if (_htmlContent != null && _htmlContent!.isNotEmpty) {
+        // Load the HTML string directly into the WebView
+        _webViewController.loadHtmlString(_htmlContent!);
+      }
+
     } on ApiException catch (e) {
       setState(() {
         _error = e.message;
@@ -291,26 +304,7 @@ class _CertificateViewScreenState extends State<CertificateViewScreen> {
                     ],
                   ),
                 )
-              : SingleChildScrollView(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        color: Colors.white,
-                      ),
-                      child: Html(
-                        data: _htmlContent,
-                        style: {
-                          "body": Style(
-                            margin: Margins.zero,
-                            padding: HtmlPaddings.zero,
-                          ),
-                        },
-                      ),
-                    ),
-                  ),
-                ),
+              : WebViewWidget(controller: _webViewController),
     );
   }
 }
