@@ -9,7 +9,7 @@ import 'homework_screen.dart';
 import 'exam_screen.dart';
 import 'attendance_screen.dart';
 import 'timetable_screen.dart';
-
+import 'certificate_screen.dart';
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -277,13 +277,14 @@ class _DashboardHome extends StatelessWidget {
                           builder: (_) => const TimetableScreen())),
                 ),
                 _FeatureTile(
-                  icon: Icons.person_rounded,
-                  title: 'Profile',
-                  subtitle: 'Your details',
+                  icon: Icons.workspace_premium_rounded,
+                  title: 'Certificates',
+                  subtitle: 'View & generate',
                   color: const Color(0xFFFF94B4),
-                  onTap: () {
-                    // Switch to profile tab
-                  },
+                  onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const CertificateScreen())),
                 ),
               ],
             ),
