@@ -39,7 +39,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     try {
       final response = await _apiClient.get(
         '/user-notifications',
-        queryParameters: {
+        queryParams: {
           'role': role,
           'class_id': classId,
           'section_id': sectionId,
