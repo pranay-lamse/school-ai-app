@@ -10,6 +10,8 @@ import 'exam_screen.dart';
 import 'attendance_screen.dart';
 import 'timetable_screen.dart';
 import 'certificate_screen.dart';
+import 'notifications_screen.dart';
+
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -126,6 +128,23 @@ class _DashboardHome extends StatelessWidget {
                         style: Theme.of(context).textTheme.headlineMedium,
                       ),
                     ],
+                  ),
+                ),
+                Container(
+                  margin: const EdgeInsets.only(right: 12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.cardBg,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppTheme.cardBorder),
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.notifications_outlined, color: AppTheme.textPrimary),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+                      );
+                    },
                   ),
                 ),
                 Container(
