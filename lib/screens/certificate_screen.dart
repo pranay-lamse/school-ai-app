@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_html/flutter_html.dart';
+import 'package:printing/printing.dart';
+import 'package:pdf/pdf.dart';
 import '../services/api_client.dart';
 import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
@@ -159,6 +161,7 @@ class _CertificateViewScreenState extends State<CertificateViewScreen> {
   String? _htmlContent;
   bool _isLoading = true;
   String? _error;
+  bool _isDownloading = false;
 
   @override
   void initState() {
@@ -213,10 +216,54 @@ class _CertificateViewScreenState extends State<CertificateViewScreen> {
     }
   }
 
+  Future<void> _downloadPdf() async {
+    if (_htmlContent == null || _isDownloading) return;
+    
+    setState(() => _isDownloading = true);
+    
+    try {
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async {
+          return await Printing.convertHtml(
+            format: format,
+            html: _htmlContent!,
+          );
+        },
+        name: '${widget.certificateName}.pdf',
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to generate PDF')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isDownloading = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.certificateName)),
+      appBar: AppBar(
+        title: Text(widget.certificateName),
+        actions: [
+          if (_htmlContent != null)
+            IconButton(
+              icon: _isDownloading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 2))
+                  : const Icon(Icons.picture_as_pdf_rounded),
+              onPressed: _downloadPdf,
+              tooltip: 'Download PDF',
+            ),
+        ],
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
