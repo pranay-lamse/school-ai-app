@@ -23,6 +23,7 @@ class ApiClient {
     final headers = <String, String>{
       'Content-Type': 'application/json',
       'Accept': 'application/json',
+      'X-Tenant-Domain': 'erabesa.vercel.app',
     };
     if (token != null) {
       headers['Authorization'] = 'Bearer $token';

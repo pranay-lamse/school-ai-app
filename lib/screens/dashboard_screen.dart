@@ -11,6 +11,7 @@ import 'attendance_screen.dart';
 import 'timetable_screen.dart';
 import 'certificate_screen.dart';
 import 'notifications_screen.dart';
+import 'leave/leave_list_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -256,6 +257,14 @@ class _DashboardHome extends StatelessWidget {
                   color: const Color(0xFF4ADE80),
                   onTap: () => Navigator.push(context,
                       MaterialPageRoute(builder: (_) => const FeesScreen())),
+                ),
+                _FeatureTile(
+                  icon: Icons.event_busy_rounded,
+                  title: 'Leave',
+                  subtitle: 'Apply for leave',
+                  color: const Color(0xFFFBBF24),
+                  onTap: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const LeaveListScreen())),
                 ),
                 _FeatureTile(
                   icon: Icons.menu_book_rounded,
