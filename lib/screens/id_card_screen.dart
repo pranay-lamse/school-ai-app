@@ -107,7 +107,7 @@ class IdCardScreen extends StatelessWidget {
                           ],
                         ),
                         child: CircleAvatar(
-                          backgroundColor: AppTheme.primary,
+                          backgroundColor: AppTheme.primaryPurple,
                           child: Text(
                             firstName.isNotEmpty ? firstName[0].toUpperCase() : 'S',
                             style: const TextStyle(fontSize: 40, color: Colors.white),
