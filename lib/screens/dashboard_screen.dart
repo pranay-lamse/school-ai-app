@@ -12,6 +12,7 @@ import 'timetable_screen.dart';
 import 'certificate_screen.dart';
 import 'notifications_screen.dart';
 import 'leave/leave_list_screen.dart';
+import 'id_card_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -265,6 +266,14 @@ class _DashboardHome extends StatelessWidget {
                   color: const Color(0xFFFBBF24),
                   onTap: () => Navigator.push(context,
                       MaterialPageRoute(builder: (_) => const LeaveListScreen())),
+                ),
+                _FeatureTile(
+                  icon: Icons.badge_rounded,
+                  title: 'ID Card',
+                  subtitle: 'Digital Gate Pass',
+                  color: const Color(0xFF8B5CF6),
+                  onTap: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const IdCardScreen())),
                 ),
                 _FeatureTile(
                   icon: Icons.menu_book_rounded,
