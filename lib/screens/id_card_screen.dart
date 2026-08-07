@@ -90,43 +90,45 @@ class IdCardScreen extends StatelessWidget {
                     ),
                     
                     // Profile Photo
-                    Transform.translate(
-                      offset: const Offset(0, -30),
-                      child: Container(
-                        width: 100,
-                        height: 100,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 4),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              blurRadius: 10,
-                            )
-                          ],
-                        ),
-                        child: CircleAvatar(
-                          backgroundColor: AppTheme.primaryPurple,
-                          child: Text(
-                            firstName.isNotEmpty ? firstName[0].toUpperCase() : 'S',
-                            style: const TextStyle(fontSize: 40, color: Colors.white),
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    // Student Details
-                    Transform.translate(
-                      offset: const Offset(0, -15),
+                    Container(
+                      transform: Matrix4.translationValues(0, -40, 0),
                       child: Column(
                         children: [
-                          Text(
-                            fullName.toUpperCase(),
-                            style: const TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF242B31),
+                          Container(
+                            width: 100,
+                            height: 100,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 4),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 10,
+                                )
+                              ],
+                            ),
+                            child: CircleAvatar(
+                              backgroundColor: AppTheme.primaryPurple,
+                              child: Text(
+                                firstName.isNotEmpty ? firstName[0].toUpperCase() : 'S',
+                                style: const TextStyle(fontSize: 40, color: Colors.white),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                            child: Text(
+                              fullName.toUpperCase(),
+                              textAlign: TextAlign.center,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF242B31),
+                              ),
                             ),
                           ),
                           const SizedBox(height: 16),
